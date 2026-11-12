@@ -3,23 +3,31 @@ import { Feather } from '@expo/vector-icons';
 import { apiHost } from '../api';
 import { displayName } from '../date';
 import { colors, radius } from '../theme';
-import type { User } from '../types';
+import type { User, UserDevice } from '../types';
 
 type Props = {
   user: User;
   remindersCount: number;
+  devices: UserDevice[];
+  currentDeviceId: string | null;
   notificationsEnabled: boolean;
   notificationMessage?: string;
-  onEnableNotifications: () => void;
+  updatingNotifications: boolean;
+  onToggleNotifications: () => void;
+  onToggleDevice: (id: string, isActive: boolean) => void;
   onSignOut: () => void;
 };
 
 export function AccountScreen({
   user,
   remindersCount,
+  devices,
+  currentDeviceId,
   notificationsEnabled,
   notificationMessage,
-  onEnableNotifications,
+  updatingNotifications,
+  onToggleNotifications,
+  onToggleDevice,
   onSignOut,
 }: Props) {
   const name = displayName(user.full_name, user.email);
@@ -51,7 +59,13 @@ export function AccountScreen({
       </View>
 
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
-      <Pressable onPress={onEnableNotifications} style={({ pressed }) => [styles.setting, pressed && styles.pressed]}>
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityState={{ checked: notificationsEnabled, disabled: updatingNotifications }}
+        disabled={updatingNotifications}
+        onPress={onToggleNotifications}
+        style={({ pressed }) => [styles.setting, pressed && styles.pressed, updatingNotifications && styles.disabled]}
+      >
         <View style={styles.settingIcon}><Feather name="bell" size={16} color={colors.green} /></View>
         <View style={styles.settingCopy}>
           <Text style={styles.settingTitle}>Push notifications</Text>
@@ -63,6 +77,36 @@ export function AccountScreen({
           <View style={[styles.toggleKnob, notificationsEnabled && styles.toggleKnobOn]} />
         </View>
       </Pressable>
+
+      {devices.length > 0 ? (
+        <View style={styles.devices}>
+          <Text style={styles.devicesTitle}>REGISTERED DEVICES</Text>
+          {devices.map((device) => (
+            <View key={device.id} style={styles.deviceRow}>
+              <View style={styles.deviceIcon}>
+                <Feather name={device.platform === 'android' ? 'smartphone' : 'tablet'} size={15} color={colors.green} />
+              </View>
+              <View style={styles.deviceCopy}>
+                <Text numberOfLines={1} style={styles.deviceName}>
+                  {device.device_name || `${device.platform} device`}
+                  {device.id === currentDeviceId ? ' · This device' : ''}
+                </Text>
+                <Text style={styles.deviceStatus}>{device.is_active ? 'Active' : 'Paused'}</Text>
+              </View>
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityLabel={`${device.is_active ? 'Pause' : 'Activate'} ${device.device_name || device.platform} notifications`}
+                accessibilityState={{ checked: device.is_active, disabled: updatingNotifications }}
+                disabled={updatingNotifications}
+                onPress={() => onToggleDevice(device.id, !device.is_active)}
+                style={[styles.deviceToggle, device.is_active && styles.deviceToggleOn]}
+              >
+                <View style={[styles.deviceToggleKnob, device.is_active && styles.deviceToggleKnobOn]} />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.setting}>
         <View style={[styles.settingIcon, styles.settingIconNeutral]}><Feather name="shield" size={16} color={colors.muted} /></View>
@@ -123,4 +167,16 @@ const styles = StyleSheet.create({
   signOutText: { color: colors.red, fontSize: 11, fontWeight: '700' },
   version: { color: colors.muted, fontSize: 9, textAlign: 'center', marginTop: 19 },
   pressed: { opacity: 0.82 },
+  disabled: { opacity: 0.6 },
+  devices: { backgroundColor: colors.white, borderRadius: 16, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, paddingVertical: 13, marginBottom: 8 },
+  devicesTitle: { color: colors.muted, fontSize: 8, fontWeight: '800', letterSpacing: 1.1, marginBottom: 8 },
+  deviceRow: { minHeight: 50, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.line },
+  deviceIcon: { width: 31, height: 31, borderRadius: 11, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
+  deviceCopy: { flex: 1, marginHorizontal: 9 },
+  deviceName: { color: colors.ink, fontSize: 10, fontWeight: '700' },
+  deviceStatus: { color: colors.muted, fontSize: 9, marginTop: 3 },
+  deviceToggle: { width: 34, height: 20, borderRadius: 12, justifyContent: 'center', paddingHorizontal: 3, backgroundColor: '#D9DED9' },
+  deviceToggleOn: { backgroundColor: colors.green },
+  deviceToggleKnob: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.white },
+  deviceToggleKnobOn: { alignSelf: 'flex-end' },
 });

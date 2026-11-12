@@ -21,7 +21,7 @@ import { ReminderFormScreen } from './src/screens/ReminderFormScreen';
 import { RemindersScreen } from './src/screens/RemindersScreen';
 import { sessionStore } from './src/sessionStore';
 import { colors } from './src/theme';
-import type { AuthResponse, NotificationLog, Reminder, ReminderInput, ReminderStatus, User } from './src/types';
+import type { AuthResponse, NotificationLog, Reminder, ReminderInput, ReminderStatus, User, UserDevice } from './src/types';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -46,7 +46,10 @@ export default function App() {
   const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [logs, setLogs] = useState<NotificationLog[]>([]);
+  const [devices, setDevices] = useState<UserDevice[]>([]);
+  const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [updatingNotifications, setUpdatingNotifications] = useState(false);
   const [error, setError] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
@@ -75,15 +78,30 @@ export default function App() {
   const refreshData = useCallback(async (token: string) => {
     setLoadingData(true);
     try {
-      const [currentUser, reminderResponse, logResponse] = await Promise.all([
+      const [currentUser, reminderResponse, logResponse, deviceResponse] = await Promise.all([
         api.me(token),
         api.reminders(token),
         api.notificationLogs(token),
+        api.devices(token),
       ]);
       setSession((current) => current?.token === token ? { token, user: currentUser } : current);
       setReminders(reminderResponse.items);
       setLogs(logResponse.items);
-      setNotificationsEnabled(Boolean(currentUser.fcm_device_token));
+      setDevices(deviceResponse.items);
+      let thisDeviceId: string | null = null;
+      if (Device.isDevice && Device.osName?.toLowerCase() === 'android') {
+        try {
+          const nativeToken = await Notifications.getDevicePushTokenAsync();
+          const currentDevice = deviceResponse.items.find((device) =>
+            device.device_token === String(nativeToken.data),
+          );
+          thisDeviceId = currentDevice?.id || null;
+        } catch {
+          thisDeviceId = null;
+        }
+      }
+      setCurrentDeviceId(thisDeviceId);
+      setNotificationsEnabled(Boolean(deviceResponse.items.find((device) => device.id === thisDeviceId)?.is_active));
       setError('');
       await sessionStore.setItemAsync(SESSION_KEY, JSON.stringify({ token, user: currentUser }));
     } catch (reason) {
@@ -98,6 +116,8 @@ export default function App() {
     else {
       setReminders([]);
       setLogs([]);
+      setDevices([]);
+      setCurrentDeviceId(null);
       setNotificationsEnabled(false);
     }
   }, [session?.token, refreshData]);
@@ -160,7 +180,7 @@ export default function App() {
     }
   }
 
-  async function enableNotifications() {
+  async function toggleNotifications() {
     setNotificationMessage('');
     if (!session) return;
     if (!Device.isDevice) {
@@ -172,6 +192,7 @@ export default function App() {
       return;
     }
 
+    setUpdatingNotifications(true);
     try {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Reminders',
@@ -185,14 +206,52 @@ export default function App() {
         setNotificationMessage('Allow notifications in Android settings to receive reminders.');
         return;
       }
-      const nativeToken = await Notifications.getDevicePushTokenAsync();
-      await api.updateDeviceToken(session.token, String(nativeToken.data));
-      const updatedUser = { ...session.user, fcm_device_token: String(nativeToken.data) };
-      setSession({ token: session.token, user: updatedUser });
-      setNotificationsEnabled(true);
-      setNotificationMessage('This device is ready for reminders.');
+      let updatedDevice: UserDevice;
+      const currentDevice = currentDeviceId ? devices.find((item) => item.id === currentDeviceId) : undefined;
+      if (currentDevice) {
+        updatedDevice = await api.updateDevice(session.token, currentDevice.id, !currentDevice.is_active);
+      } else {
+        const nativeToken = await Notifications.getDevicePushTokenAsync();
+        updatedDevice = await api.registerDevice(session.token, {
+          device_token: String(nativeToken.data),
+          platform: 'android',
+          device_name: Device.deviceName || Device.modelName || undefined,
+        });
+        setCurrentDeviceId(updatedDevice.id);
+      }
+      setDevices((current) => [
+        ...current.filter((item) => item.id !== updatedDevice.id),
+        updatedDevice,
+      ]);
+      setNotificationsEnabled(updatedDevice.is_active);
+      setNotificationMessage(updatedDevice.is_active ? 'This device is ready for reminders.' : 'Push notifications are off on this device.');
     } catch (reason) {
       setNotificationMessage(reason instanceof Error ? reason.message : 'Could not enable push notifications.');
+    } finally {
+      setUpdatingNotifications(false);
+    }
+  }
+
+  async function toggleDevice(deviceId: string, isActive: boolean) {
+    if (!session) return;
+    try {
+      setUpdatingNotifications(true);
+      if (isActive && deviceId === currentDeviceId) {
+        let permission = await Notifications.getPermissionsAsync();
+        if (!permission.granted) permission = await Notifications.requestPermissionsAsync();
+        if (!permission.granted) {
+          setNotificationMessage('Allow notifications in Android settings to receive reminders.');
+          return;
+        }
+      }
+      const updatedDevice = await api.updateDevice(session.token, deviceId, isActive);
+      setDevices((current) => current.map((device) => device.id === updatedDevice.id ? updatedDevice : device));
+      if (deviceId === currentDeviceId) setNotificationsEnabled(updatedDevice.is_active);
+      setNotificationMessage('');
+    } catch (reason) {
+      setNotificationMessage(reason instanceof Error ? reason.message : 'Could not update this device.');
+    } finally {
+      setUpdatingNotifications(false);
     }
   }
 
@@ -258,9 +317,13 @@ export default function App() {
                 <AccountScreen
                   user={session.user}
                   remindersCount={reminders.length}
+                  devices={devices}
+                  currentDeviceId={currentDeviceId}
                   notificationsEnabled={notificationsEnabled}
                   notificationMessage={notificationMessage}
-                  onEnableNotifications={() => void enableNotifications()}
+                  updatingNotifications={updatingNotifications}
+                  onToggleNotifications={() => void toggleNotifications()}
+                  onToggleDevice={(id, isActive) => void toggleDevice(id, isActive)}
                   onSignOut={() => void signOut()}
                 />
               ) : null}

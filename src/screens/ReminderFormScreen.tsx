@@ -47,6 +47,10 @@ export function ReminderFormScreen({ reminder, onCancel, onSave }: Props) {
   const [intervalValue, setIntervalValue] = useState(String(reminder?.custom_interval_value || 2));
   const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(reminder?.custom_interval_unit || 'weeks');
   const [noticeDays, setNoticeDays] = useState(String(reminder?.advance_notice_days || 0));
+  const [notificationTime, setNotificationTime] = useState(reminder?.notification_time || '09:00');
+  const [timezone, setTimezone] = useState(
+    reminder?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
+  );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
@@ -91,6 +95,17 @@ export function ReminderFormScreen({ reminder, onCancel, onSave }: Props) {
       setError('Advance notice must be between 0 and 365 days.');
       return;
     }
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(notificationTime)) {
+      setError('Enter the notification time in 24-hour HH:MM format.');
+      return;
+    }
+    const timezoneValue = timezone.trim();
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezoneValue }).format();
+    } catch {
+      setError('Enter a valid timezone, such as Asia/Kolkata.');
+      return;
+    }
     const customValue = Number(intervalValue);
     if (recurrence === 'custom' && (!Number.isInteger(customValue) || customValue < 1 || customValue > 1000)) {
       setError('A custom interval must be between 1 and 1000.');
@@ -103,6 +118,8 @@ export function ReminderFormScreen({ reminder, onCancel, onSave }: Props) {
       start_date: startDate,
       recurrence,
       advance_notice_days: advanceNotice,
+      notification_time: notificationTime,
+      timezone: timezoneValue,
     };
     if (recurrence === 'custom') {
       input.custom_interval_value = customValue;
@@ -229,6 +246,29 @@ export function ReminderFormScreen({ reminder, onCancel, onSave }: Props) {
               value={noticeDays}
             />
           </View>
+
+          <Text style={[styles.label, styles.noticeLabel]}>Notification time</Text>
+          <TextInput
+            accessibilityLabel="Notification time in 24-hour format"
+            maxLength={5}
+            onChangeText={setNotificationTime}
+            placeholder="09:00"
+            placeholderTextColor="#A0AAA3"
+            style={styles.input}
+            value={notificationTime}
+          />
+          <Text style={styles.helper}>We’ll send it at this local time on the advance-notice date.</Text>
+
+          <Text style={styles.label}>Timezone</Text>
+          <TextInput
+            accessibilityLabel="Reminder timezone"
+            autoCapitalize="none"
+            onChangeText={setTimezone}
+            placeholder="Asia/Kolkata"
+            placeholderTextColor="#A0AAA3"
+            style={styles.input}
+            value={timezone}
+          />
         </View>
 
         {error ? (

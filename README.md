@@ -25,11 +25,11 @@ An Expo and React Native app for creating recurring reminders with the Reminder 
    npx expo start
    ```
 
-4. Open the project in Expo Go or a development build. For Android push notifications, configure Firebase for the native app (including its Android Firebase configuration), use a development build on a physical device, and run the backend's FCM worker with service-account credentials. iOS push delivery additionally needs Firebase/APNs project configuration.
+4. Open the project in Expo Go or a development build. For Android push notifications, configure Firebase for the native app (including its Android Firebase configuration), use a development build on a physical device, and run the backend's FCM worker with service-account credentials. iOS push delivery additionally needs Firebase/APNs project configuration. Each account can register multiple devices and pause notifications for each one from Account settings.
 
 ## API
 
-The client uses the backend's `/api/v1` endpoints. The API URL is read from `EXPO_PUBLIC_API_URL`; the Android emulator default is `http://10.0.2.2:8080` and other platforms default to `http://localhost:8080`.
+The client uses the backend's `/api/v1` endpoints. Reminders include a local notification time and IANA timezone; the default time is 9:00 AM in the device timezone. The API URL is read from `EXPO_PUBLIC_API_URL`; the Android emulator default is `http://10.0.2.2:8080` and other platforms default to `http://localhost:8080`.
 Web sessions are stored in browser local storage and are not encrypted; avoid signing in on shared browsers.
 
 The backend enforces a minimum password length of 12 characters and E.164 phone numbers for registration. Custom reminder intervals are limited to 1–1000 days, weeks, months, or years; advance notice accepts 0–365 days.

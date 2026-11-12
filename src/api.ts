@@ -6,9 +6,10 @@ import type {
   ReminderInput,
   ReminderStatus,
   User,
+  UserDevice,
 } from './types';
 
-const defaultHost = Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080';
+const defaultHost = Platform.OS === 'android' ? 'http://192.168.100.4:8080' : 'http://localhost:8080';
 const configuredHost = process.env.EXPO_PUBLIC_API_URL?.trim() || defaultHost;
 const API_URL = `${configuredHost.replace(/\/+$/, '')}/api/v1`;
 
@@ -64,6 +65,23 @@ export const api = {
 
   me: (token: string) => request<User>('/me', token),
 
+  devices: (token: string) => request<{ items: UserDevice[] }>('/me/devices', token),
+
+  registerDevice: (
+    token: string,
+    input: { device_token: string; platform: UserDevice['platform']; device_name?: string },
+  ) =>
+    request<UserDevice>('/me/devices', token, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  updateDevice: (token: string, id: string, isActive: boolean) =>
+    request<UserDevice>(`/me/devices/${encodeURIComponent(id)}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_active: isActive }),
+    }),
+
   reminders: (token: string) => request<ListResponse<Reminder>>('/reminders?limit=100&offset=0', token),
 
   notificationLogs: (token: string) =>
@@ -87,11 +105,6 @@ export const api = {
   deleteReminder: (token: string, id: string) =>
     request<void>(`/reminders/${encodeURIComponent(id)}`, token, { method: 'DELETE' }),
 
-  updateDeviceToken: (token: string, deviceToken: string | null) =>
-    request<void>('/me/device-token', token, {
-      method: 'PATCH',
-      body: JSON.stringify({ fcm_device_token: deviceToken }),
-    }),
 };
 
 export const apiHost = configuredHost;

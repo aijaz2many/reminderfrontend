@@ -47,7 +47,9 @@ export function ActivityScreen({ logs }: Props) {
                       ? 'Reminder delivered'
                       : log.status === 'skipped_no_device_token'
                         ? 'No device registered'
-                        : 'Reminder not sent'}
+                        : log.status === 'retrying'
+                          ? 'Retry scheduled'
+                          : 'Reminder not sent'}
                   </Text>
                   <Text style={styles.logDate}>
                     {new Date(log.sent_at || log.scheduled_for).toLocaleString('en-US', {
@@ -56,8 +58,15 @@ export function ActivityScreen({ logs }: Props) {
                       hour: 'numeric',
                       minute: '2-digit',
                     })}
-                    {log.status && log.status !== 'sent' ? ` · ${log.status.replaceAll('_', ' ')}` : ''}
+                    {log.status !== 'sent' ? ` · ${log.status.replaceAll('_', ' ')}` : ''}
+                    {log.retry_count > 1 ? ` · ${log.retry_count} attempts` : ''}
                   </Text>
+                  {log.error_message ? (
+                    <Text numberOfLines={2} style={styles.logError}>{log.error_message}</Text>
+                  ) : null}
+                  {log.provider_message_id ? (
+                    <Text numberOfLines={1} style={styles.logProvider}>Firebase: {log.provider_message_id}</Text>
+                  ) : null}
                 </View>
                 <View style={styles.channel}><Text style={styles.channelText}>{log.channel || 'push'}</Text></View>
               </View>
@@ -97,6 +106,8 @@ const styles = StyleSheet.create({
   logCopy: { flex: 1, marginLeft: 10 },
   logTitle: { color: colors.ink, fontSize: 11, fontWeight: '700' },
   logDate: { color: colors.muted, fontSize: 9, marginTop: 5 },
+  logError: { color: colors.red, fontSize: 9, lineHeight: 13, marginTop: 4 },
+  logProvider: { color: colors.muted, fontSize: 8, marginTop: 4 },
   channel: { backgroundColor: '#F2F4F0', borderRadius: 15, paddingHorizontal: 8, paddingVertical: 4 },
   channelText: { color: colors.muted, fontSize: 8, textTransform: 'capitalize' },
   footnote: { color: colors.muted, fontSize: 10, textAlign: 'center', marginTop: 22 },

@@ -9,8 +9,18 @@ export interface User {
   full_name?: string | null;
   role: 'tenant_user' | 'super_admin';
   subscription_tier: string;
-  fcm_device_token?: string | null;
   created_at: string;
+}
+
+export interface UserDevice {
+  id: string;
+  device_token: string;
+  platform: 'android' | 'ios';
+  device_name?: string | null;
+  is_active: boolean;
+  last_used_at?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Reminder {
@@ -24,6 +34,8 @@ export interface Reminder {
   custom_interval_value?: number | null;
   custom_interval_unit?: IntervalUnit | null;
   advance_notice_days: number;
+  notification_time: string;
+  timezone: string;
   status: ReminderStatus;
   created_at: string;
 }
@@ -31,10 +43,17 @@ export interface Reminder {
 export interface NotificationLog {
   id: string;
   reminder_id?: string | null;
+  user_id?: string | null;
+  device_id?: string | null;
   scheduled_for: string;
   sent_at?: string | null;
-  status?: string | null;
-  channel?: string | null;
+  status: string;
+  channel: string;
+  provider?: string | null;
+  provider_message_id?: string | null;
+  error_message?: string | null;
+  retry_count: number;
+  created_at: string;
 }
 
 export interface AuthResponse {
@@ -50,4 +69,6 @@ export interface ReminderInput {
   custom_interval_value?: number;
   custom_interval_unit?: IntervalUnit;
   advance_notice_days: number;
+  notification_time: string;
+  timezone: string;
 }
